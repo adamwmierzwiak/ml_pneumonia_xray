@@ -35,6 +35,13 @@ Design notes (see notebook step 17 and chat history for full reasoning):
 - Also reports each stratum's own trivial (prevalence-matched) baseline
   accuracy for comparison, in the same spirit as the notebook's own
   trivial-baseline check after step 6.
+- Saves the raw sigmoid probability for every image, not just the
+  threshold-0.5 rounded prediction, and reports AUC-ROC (pooled and per
+  view) alongside the confusion-matrix metrics. An earlier version of this
+  script only saved the rounded prediction, which meant the "doesn't beat
+  a trivial baseline" finding couldn't be checked for threshold-independence
+  after the fact - fixed here so that question has an actual answer instead
+  of staying open.
 """
 import os
 
@@ -44,6 +51,7 @@ import pydicom
 import torch
 import torch.nn as nn
 from PIL import Image
+from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 from torchvision import models, transforms
 
@@ -122,19 +130,22 @@ model = model.to(device).eval()
 print("loaded models/resnet18_pneumonia_full_state.pt (step 5/6's adopted model)")
 
 # ---- 5. Inference over all 14,863 images -----------------------------------
-all_preds, all_labels = [], []
+all_probs, all_labels = [], []
 with torch.no_grad():
     for inputs, labels_batch in loader:
         outputs = model(inputs.to(device))
-        all_preds.extend(torch.sigmoid(outputs).round().squeeze(1).cpu().tolist())
+        all_probs.extend(torch.sigmoid(outputs).squeeze(1).cpu().tolist())
         all_labels.extend(labels_batch.tolist())
 
-usable["pred"] = all_preds
+usable["prob"] = all_probs                     # raw score - kept, not just the thresholded call
+usable["pred"] = (usable["prob"] >= 0.5).astype(int)  # the notebook's default threshold throughout
 usable["label"] = all_labels
 usable.to_csv(os.path.join(BASE, "external_validation_predictions.csv"), index=False)
 
 
-# ---- 6. Report: pooled, stratified by ViewPosition, vs. trivial baselines --
+# ---- 6. Report: pooled, stratified by ViewPosition, vs. trivial baselines,
+# and AUC-ROC (threshold-independent - the question the rounded-only version
+# of this script couldn't answer) --------------------------------------------
 def confusion_report(df, name):
     labels_t = torch.tensor(df["label"].values)
     preds_t = torch.tensor(df["pred"].values)
@@ -151,13 +162,15 @@ def confusion_report(df, name):
     always_pos_acc = (tp + fn) / n
     always_neg_acc = (tn + fp) / n
     beats_trivial = acc > max(always_pos_acc, always_neg_acc)
+    auc = roc_auc_score(df["label"].values, df["prob"].values) if df["label"].nunique() == 2 else float("nan")
     print(f"\n{name}  (n={n})")
     print(f"  TN={tn} FP={fp} FN={fn} TP={tp}")
     print(f"  accuracy={acc:.3f}  f1={f1:.3f}  sensitivity={sens:.3f}  specificity={spec:.3f}  precision={prec:.3f}")
+    print(f"  AUC-ROC={auc:.3f}  (threshold-independent - 0.5 is random, 1.0 is perfect ranking)")
     print(f"  trivial baselines: always-positive={always_pos_acc:.3f}  always-negative={always_neg_acc:.3f}"
-          f"  -> model beats best trivial: {beats_trivial}")
+          f"  -> model beats best trivial (at threshold 0.5): {beats_trivial}")
     return dict(name=name, n=n, tn=tn, fp=fp, fn=fn, tp=tp, acc=acc, f1=f1, sens=sens, spec=spec,
-                prec=prec, always_pos_acc=always_pos_acc, always_neg_acc=always_neg_acc,
+                prec=prec, auc=auc, always_pos_acc=always_pos_acc, always_neg_acc=always_neg_acc,
                 beats_trivial=beats_trivial)
 
 

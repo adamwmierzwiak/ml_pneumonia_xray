@@ -3,8 +3,8 @@ services:
     build: .
     image: chestxray:latest
     container_name: chestxray
-    # Port tylko na localhost — dlatego token jest wyłączony
-    # 18888 na hoście, żeby nie kolidować z popularnym 8888
+    # Bound to localhost only — that's why the auth token is disabled
+    # Host port 18888, to avoid colliding with the common default 8888
     ports:
       - "127.0.0.1:18888:8888"
     volumes:

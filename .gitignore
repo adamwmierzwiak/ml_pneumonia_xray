@@ -1,1 +1,20 @@
 temporary/
+
+# Dataset and model artifacts — not committed (see README for provenance/download)
+data/
+models/
+
+# IDE / editor state — never meant to be shared
+.idea/
+.ipynb_checkpoints/
+253_31033_139-pycharm-support-libs/
+.venv/
+
+# Stray local artifacts, not part of the deliverable
+workspace.original.zip
+uv.lock
+
+# OS / tooling noise
+.DS_Store
+__pycache__/
+*.pyc

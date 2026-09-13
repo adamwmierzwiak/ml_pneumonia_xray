@@ -1,21 +1,21 @@
-# Bazujemy na obrazie z CUDA (zapewnia spójność z późniejszym GPU)
+# Based on a CUDA-enabled image (keeps this consistent with later GPU use)
 FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
 
 ENV PYTHONUNBUFFERED=1
 
-# Ustawiamy folder roboczy wewnątrz kontenera
+# Set the working directory inside the container
 WORKDIR /app
 
-# Kopiujemy plik z wymaganiami i instalujemy je
+# Copy the requirements file and install them
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Jupyter w kontenerze musi słuchać na 0.0.0.0, inaczej mapowanie portów
-# (np. losowy port serwera zarządzanego przez PyCharm) nie ma jak go dosięgnąć
+# Jupyter inside the container must listen on 0.0.0.0, otherwise port mapping
+# (e.g. PyCharm's IDE-managed server on a random host port) can't reach it
 RUN mkdir -p /root/.jupyter && printf "%s\n" \
     "c.ServerApp.ip = '0.0.0.0'" \
     "c.ServerApp.allow_remote_access = True" \
     > /root/.jupyter/jupyter_server_config.py
 
-# Pozostawiamy kontener uruchomionym (użyteczne dla PyCharma)
+# Keep the container running (useful for PyCharm)
 CMD ["sleep", "infinity"]

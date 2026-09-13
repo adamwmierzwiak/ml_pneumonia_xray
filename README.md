@@ -33,9 +33,19 @@ accuracy number. It's the process:
 - **Finally ran the external validation every prior section had been asking for — and
   reported the unflattering result as the headline, not a footnote.** Against 14,863
   images from the RSNA Pneumonia Detection Challenge (step 17), the model does not
-  beat a trivial baseline in any breakdown (pooled or by imaging projection). The
-  internal 0.76 accuracy number above answers a narrower question than it looks like
-  it does.
+  beat a trivial baseline at threshold 0.5 in any breakdown (pooled or by imaging
+  projection), and its threshold-independent AUC-ROC (0.689 pooled) is weak-to-fair
+  at best — degrading toward chance (0.597) on the one projection type it never saw
+  in training. The internal 0.76 accuracy number above answers a narrower question
+  than it looks like it does.
+- **Built collaboratively with an AI coding assistant (Claude Code, Anthropic) —
+  disclosed here for the same reason everything else on this list is disclosed.** The
+  assistant wrote most of the code and prose under direction and ran the GPU
+  experiments; the direction was mine — choosing RSNA over NIH's noisier labels for
+  external validation, judging the 3-seed "clean win" in step 16 untrustworthy enough
+  to warrant a 5-seed recheck, and commissioning the independent audit that caught two
+  misattributed citations before any of this went public. See the commit history for
+  the full co-authorship trail.
 
 ## Result
 
@@ -59,13 +69,18 @@ different things — see the notebook, step 8 and Conclusions limitation 3.
 Detection Challenge (a different institution, adult-predominant population, and a
 different positive-class definition — radiologist-flagged "Lung Opacity" rather than
 Kermany's clinically-diagnosed PNEUMONIA), **the model does not beat a trivial,
-prevalence-matched baseline** — pooled, or stratified by imaging projection (AP/PA).
-Sensitivity partly transfers (0.85–0.92 vs. the internal 1.00); specificity, already
-the weakest internal number, collapses further (0.20–0.23 vs. 0.52). This is the more
-important number for judging whether this model generalizes at all — see Conclusions,
-limitation 1, and step 17 for the full account, including why the result can't be
-attributed to any single cause (institution, label definition, and projection type all
-change simultaneously).
+prevalence-matched baseline at threshold 0.5** — pooled, or stratified by imaging
+projection (AP/PA). Its threshold-independent ranking ability (AUC-ROC) fares a
+little better but is still weak: **0.689 pooled, 0.678 AP, 0.597 PA** — barely above
+chance (0.5) on PA, the one projection type never seen in training, which is itself
+evidence for a framing/field-of-view confound (Kermany's images arrive pre-cropped;
+RSNA's don't) rather than only a calibration problem. Sensitivity partly transfers
+(0.85–0.92 vs. the internal 1.00); specificity, already the weakest internal number,
+collapses further (0.20–0.23 vs. 0.52). This is the more important number for judging
+whether this model generalizes at all — see Conclusions, limitation 1, and step 17
+for the full account, including why the result can't be attributed to any single
+cause (institution, label definition, projection type, and framing all change
+simultaneously).
 
 ## Notebook contents
 
@@ -109,7 +124,9 @@ change simultaneously).
     size. A live example of why 3 seeds is a minimum, not a target.
 17. **External validation on RSNA** (14,863 images, a different institution/population/
     label definition) — the model does not beat a trivial, prevalence-matched baseline
-    pooled or stratified by imaging projection (AP/PA). Sensitivity partly transfers;
+    at threshold 0.5, pooled or stratified by imaging projection (AP/PA), and its
+    threshold-independent AUC-ROC (0.689 pooled, 0.678 AP, 0.597 PA) is weak-to-fair
+    at best, dropping toward chance on PA specifically. Sensitivity partly transfers;
     specificity, already the weakest internal number, collapses further. Reported
     stratified because RSNA's own AP/PA split is confounded with the label (sicker
     patients get portable/AP films), and Kermany (this project's training data) is
@@ -120,7 +137,15 @@ change simultaneously).
 - `data/chestxrays.zip` — unzipped by the notebook's first cell into `data/chestxrays/`
 - 300 training and 100 test images (the 300 are further split 240 train / 60
   validation inside the notebook, step 5a), balanced across classes, preprocessed for
-  ResNet-18 (224×224)
+  ResNet-18 (224×224). **Provenance of this exact 400-image subset is not fully
+  traceable:** it was supplied pre-selected and pre-processed as part of the original
+  course assignment this project builds on (see the "Original Assignment Brief" cell
+  in `notebook.ipynb`), drawn from Kermany et al.'s full ~5,856-image dataset by the
+  course provider — how that selection was made isn't documented by them, and isn't
+  known here. A stranger downloading the full public Kermany dataset independently
+  cannot reconstruct this exact 400-image split; `data/chestxrays.zip` is not
+  committed to this repo (see `.gitignore`), so the only way to get the identical
+  files is the original course material.
 - Pediatric (1–5y) chest X-rays from Guangzhou Women and Children's Medical Center
   (Kermany et al.) — single center, routine clinical care, quality-screened,
   physician-graded. The notebook originally claimed the source paper documents
@@ -132,23 +157,34 @@ change simultaneously).
   verify — that independence is unconfirmed (Conclusions, limitation 1).
 - **Source & license:** Kermany, D., Zhang, K., & Goldbaum, M. (2018). *Labeled
   Optical Coherence Tomography (OCT) and Chest X-Ray Images for Classification*
-  (Version 2) [Dataset]. Mendeley Data. https://doi.org/10.17632/rscbjbr9sj.2 —
-  **CC BY 4.0, for research use** (the source explicitly restricts use to research);
-  this subset is also mirrored on Kaggle as "Chest X-Ray Images (Pneumonia)."
+  (Version 3) [Dataset]. Mendeley Data. https://doi.org/10.17632/rscbjbr9sj.3 —
+  licensed **CC BY 4.0** (a license that itself carries no field-of-use restriction);
+  the dataset's own description separately states the images are "made available for
+  use in research only." This project's use (training/evaluating a classifier,
+  illustrating methodology in a public notebook) is research/educational, consistent
+  with that statement. (An earlier draft of this README cited Version 2's DOI, whose
+  page doesn't carry the research-only sentence at all — corrected to point at the
+  version where that statement actually lives.) This subset is also mirrored on
+  Kaggle as "Chest X-Ray Images (Pneumonia)."
 
 **External validation data** (step 17, `rsna_external_validation.py`): 26,684 DICOM
 chest radiographs from the **RSNA Pneumonia Detection Challenge** (Kaggle), narrowed to
 14,863 usable images (Normal / Lung Opacity; the third "No Lung Opacity / Not Normal"
 class is excluded — it doesn't map to either of this project's two classes). Adult-
 predominant, mixed AP/PA projection, from the NIH ChestX-ray8/14 pool with fresh
-radiologist bounding-box annotations layered on top. **Required citation** per RSNA's
-data-use terms:
+radiologist bounding-box annotations layered on top. This notebook embeds a figure
+built from real de-identified RSNA patient images (step 17's pipeline sanity check) —
+RSNA's terms explicitly permit sharing/redistributing the data "in any form" for
+research, education, and other purposes, conditioned on the attribution below, which
+this section is written to satisfy in full:
 - Wang X, Peng Y, Lu L, Lu Z, Bagheri M, Summers RM. *ChestX-ray8: Hospital-scale Chest
   X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of
-  Common Thorax Diseases.* CVPR 2017.
+  Common Thorax Diseases.* CVPR 2017. Data: https://nihcc.app.box.com/v/ChestXray-NIHCC
+  — the NIH Clinical Center is the data provider.
 - Shih G, Wu CC, Halabi SS, et al. *Augmenting the National Institutes of Health Chest
   Radiograph Dataset with Expert Annotations of Possible Pneumonia.* Radiology:
-  Artificial Intelligence 2019;1(1):e180041.
+  Artificial Intelligence 2019;1(1):e180041. Challenge page:
+  https://www.rsna.org/education/ai-resources-and-training/ai-image-challenge/RSNA-Pneumonia-Detection-Challenge-2018
 
 Requires a free Kaggle account that has joined the competition (accepted its rules) and
 an API token — see `rsna_external_validation.py`'s docstring. Raw images (~3.8GB) are
@@ -191,8 +227,28 @@ docker exec chestxray python3 -c "import torch; print(torch.cuda.is_available())
 Nothing in `notebook.ipynb` moves computation onto a GPU by default — steps 1–15 run
 on whatever device is implicit (CPU). Step 16 is the one place that explicitly checks
 for a GPU (`torch.device("cuda" if torch.cuda.is_available() else "cpu")`) and uses it
-when present, since it's the one step expensive enough (12 full training runs) for
+when present, since it's the one step expensive enough (20 full training runs) for
 that to matter.
+
+**Reproducing steps 16 and 17 exactly** (both ran as standalone scripts on a separate
+GPU machine, not via the notebook's own `Run All` — see each step's intro for why):
+
+```bash
+# Step 16 — multi-seed 2x2 grid (needs the GPU compose override above)
+docker exec chestxray python3 step16_gpu.py
+
+# Step 17 — RSNA external validation (needs the GPU override, a Kaggle account that
+# has joined the competition, and an API token at ~/.kaggle/access_token on the host,
+# mounted or copied into the container)
+docker exec chestxray python3 rsna_external_validation.py
+```
+
+Both scripts print their results to stdout, matching what's baked into the notebook's
+step 16/17 cell outputs. `step16_gpu.py` also writes `step16_gpu_results.json` to the
+working directory (not committed); `rsna_external_validation.py` writes its manifest
+and results CSVs into kagglehub's cache directory — the copies committed under
+`external_validation/rsna/` were copied there by hand after the run that produced the
+notebook's numbers.
 
 ## JupyterLab
 
