@@ -23,6 +23,13 @@ accuracy number. It's the process:
   adaptive use of the "test set," unseeded model comparisons, an unsourced claim about
   the dataset, and overstated clinical framing were all identified and corrected in the
   notebook itself (Conclusions, limitations 1–8) rather than quietly patched over.
+- **Then verified the fix on a GPU — twice, at 3 and then 5 seeds — and let each round
+  correct the last.** The earlier "best result" (0.89 accuracy) never reproduces across
+  5 redraws and is retired as an outlier. More tellingly: a "clean win" seen at 3 seeds
+  (one recipe's accuracy beating another's on every seed) turned out to be partly a
+  small-sample artifact once the sample grew to 5 — while that same recipe's
+  specificity advantage held up with zero overlap. The project treats its own
+  first-round conclusion as a hypothesis to re-check, not a result to defend.
 
 ## Result
 
@@ -73,6 +80,15 @@ different things — see the notebook, step 8 and Conclusions limitation 3.
 15. **Removing the border cue at the source** — deterministic masking (train, val, and
     evaluation alike); the steadiest single-lever result in the notebook, with its own
     honest complication
+16. **Repeating the 2×2 grid across 5 seeds** (GPU-accelerated, run in two rounds — 3
+    seeds, then extended to 5) — settles limitation 4: unfreezing `layer4` stays the
+    dominant source of instability regardless of augmentation (worst case: a *fully
+    converged* 0.62 accuracy), and step 11's 0.89 never reproduced across 5 redraws
+    (best was 0.88). The more useful finding is methodological: the 3-seed round's
+    "clean win" for `frozen + aug` on accuracy (every seed beating every
+    `frozen + plain` seed) didn't survive to 5 seeds — the distributions now overlap —
+    while its specificity advantage did survive, with zero overlap at either sample
+    size. A live example of why 3 seeds is a minimum, not a target.
 
 ## Data
 
@@ -100,7 +116,9 @@ different things — see the notebook, step 8 and Conclusions limitation 3.
 Code runs **inside the container**, not on the host. The image is based on
 `pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime` plus the packages in
 `requirements.txt` (`torchvision`, `torchmetrics`, `jupyterlab`, …). Docker on macOS
-has no GPU access — training runs on CPU, which is plenty for this dataset size.
+has no GPU access — training runs on CPU, which is plenty for steps 1–15 (each trains
+513–8M parameters for 25 epochs on 240 images). Step 16's 20 repeated trainings were
+run on a separate Linux/NVIDIA host instead — see below.
 
 ```bash
 # start the environment (builds on first run)
@@ -112,6 +130,23 @@ docker compose exec chestxray python env_check.py
 # stop
 docker compose down
 ```
+
+### GPU (optional)
+
+On a machine with an NVIDIA GPU and `nvidia-container-toolkit` installed, bring the
+same image up with GPU passthrough via the additive override in `docker-compose.gpu.yml`
+(not applied on Mac/CPU-only hosts):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+docker exec chestxray python3 -c "import torch; print(torch.cuda.is_available())"
+```
+
+Nothing in `notebook.ipynb` moves computation onto a GPU by default — steps 1–15 run
+on whatever device is implicit (CPU). Step 16 is the one place that explicitly checks
+for a GPU (`torch.device("cuda" if torch.cuda.is_available() else "cpu")`) and uses it
+when present, since it's the one step expensive enough (12 full training runs) for
+that to matter.
 
 ## JupyterLab
 
@@ -148,6 +183,7 @@ The `docker-compose.yml` service exposes JupyterLab at:
 | `notebook.ipynb`      | the project — data, training, evaluation, Grad-CAM           |
 | `Dockerfile`          | runtime image (PyTorch + requirements + Jupyter config)      |
 | `docker-compose.yml`  | JupyterLab service on port 18888                              |
+| `docker-compose.gpu.yml` | additive override: GPU passthrough on NVIDIA hosts (step 16) |
 | `requirements.txt`    | packages installed into the image                            |
 | `env_check.py`        | environment smoke test (versions, CUDA, tensor op)           |
 | `data/`               | dataset (zip + unzipped)                                     |

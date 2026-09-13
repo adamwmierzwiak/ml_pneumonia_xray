@@ -1,0 +1,14 @@
+# GPU override for machines with an NVIDIA GPU + nvidia-container-toolkit
+# (not used on the Mac dev environment, which has no GPU passthrough).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+services:
+  chestxray:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
