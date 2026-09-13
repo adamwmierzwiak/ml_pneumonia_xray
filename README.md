@@ -30,6 +30,12 @@ accuracy number. It's the process:
   small-sample artifact once the sample grew to 5 — while that same recipe's
   specificity advantage held up with zero overlap. The project treats its own
   first-round conclusion as a hypothesis to re-check, not a result to defend.
+- **Finally ran the external validation every prior section had been asking for — and
+  reported the unflattering result as the headline, not a footnote.** Against 14,863
+  images from the RSNA Pneumonia Detection Challenge (step 17), the model does not
+  beat a trivial baseline in any breakdown (pooled or by imaging projection). The
+  internal 0.76 accuracy number above answers a narrower question than it looks like
+  it does.
 
 ## Result
 
@@ -42,12 +48,24 @@ class-balanced), at the untuned default threshold 0.5: **accuracy 0.76 [95% CI
 baseline scores 0.50 / 1.00 / ~0.67 on this same set for free — sensitivity alone isn't
 the story; specificity and F1 are where this model earns its result. This evaluation
 set was used repeatedly across the notebook (steps 6, 9–12, 15), not observed once —
-see *Conclusions & Limitations* for the full accounting, including the lack of external
-validation, unverified patient-level split independence, and why this is not a
-screening or triage tool.
+see *Conclusions & Limitations* for the full accounting, including the external
+validation result below, unverified patient-level split independence, and why this is
+not a screening or triage tool.
 
 *"Frozen" needs a footnote too: gradient-freezing and BatchNorm-statistic-freezing are
 different things — see the notebook, step 8 and Conclusions limitation 3.
+
+**External validation (step 17):** against 14,863 images from the RSNA Pneumonia
+Detection Challenge (a different institution, adult-predominant population, and a
+different positive-class definition — radiologist-flagged "Lung Opacity" rather than
+Kermany's clinically-diagnosed PNEUMONIA), **the model does not beat a trivial,
+prevalence-matched baseline** — pooled, or stratified by imaging projection (AP/PA).
+Sensitivity partly transfers (0.85–0.92 vs. the internal 1.00); specificity, already
+the weakest internal number, collapses further (0.20–0.23 vs. 0.52). This is the more
+important number for judging whether this model generalizes at all — see Conclusions,
+limitation 1, and step 17 for the full account, including why the result can't be
+attributed to any single cause (institution, label definition, and projection type all
+change simultaneously).
 
 ## Notebook contents
 
@@ -89,6 +107,13 @@ different things — see the notebook, step 8 and Conclusions limitation 3.
     `frozen + plain` seed) didn't survive to 5 seeds — the distributions now overlap —
     while its specificity advantage did survive, with zero overlap at either sample
     size. A live example of why 3 seeds is a minimum, not a target.
+17. **External validation on RSNA** (14,863 images, a different institution/population/
+    label definition) — the model does not beat a trivial, prevalence-matched baseline
+    pooled or stratified by imaging projection (AP/PA). Sensitivity partly transfers;
+    specificity, already the weakest internal number, collapses further. Reported
+    stratified because RSNA's own AP/PA split is confounded with the label (sicker
+    patients get portable/AP films), and Kermany (this project's training data) is
+    AP-only — a pooled score alone would conflate two different distribution shifts.
 
 ## Data
 
@@ -110,6 +135,27 @@ different things — see the notebook, step 8 and Conclusions limitation 3.
   (Version 2) [Dataset]. Mendeley Data. https://doi.org/10.17632/rscbjbr9sj.2 —
   **CC BY 4.0, for research use** (the source explicitly restricts use to research);
   this subset is also mirrored on Kaggle as "Chest X-Ray Images (Pneumonia)."
+
+**External validation data** (step 17, `rsna_external_validation.py`): 26,684 DICOM
+chest radiographs from the **RSNA Pneumonia Detection Challenge** (Kaggle), narrowed to
+14,863 usable images (Normal / Lung Opacity; the third "No Lung Opacity / Not Normal"
+class is excluded — it doesn't map to either of this project's two classes). Adult-
+predominant, mixed AP/PA projection, from the NIH ChestX-ray8/14 pool with fresh
+radiologist bounding-box annotations layered on top. **Required citation** per RSNA's
+data-use terms:
+- Wang X, Peng Y, Lu L, Lu Z, Bagheri M, Summers RM. *ChestX-ray8: Hospital-scale Chest
+  X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of
+  Common Thorax Diseases.* CVPR 2017.
+- Shih G, Wu CC, Halabi SS, et al. *Augmenting the National Institutes of Health Chest
+  Radiograph Dataset with Expert Annotations of Possible Pneumonia.* Radiology:
+  Artificial Intelligence 2019;1(1):e180041.
+
+Requires a free Kaggle account that has joined the competition (accepted its rules) and
+an API token — see `rsna_external_validation.py`'s docstring. Raw images (~3.8GB) are
+**not** committed to this repo (both for size and because redistributing the raw data
+isn't the point of a git history); `external_validation/rsna/` keeps only the small,
+derived CSVs (manifest with DICOM metadata, predictions, summary results) needed to
+audit or reproduce the reported numbers without re-downloading.
 
 ## Runtime environment (Docker)
 
@@ -188,3 +234,6 @@ The `docker-compose.yml` service exposes JupyterLab at:
 | `env_check.py`        | environment smoke test (versions, CUDA, tensor op)           |
 | `data/`               | dataset (zip + unzipped)                                     |
 | `models/`             | ImageNet weights (`hub/`) and classifier-head checkpoints    |
+| `step16_gpu.py`       | standalone runner: multi-seed 2×2 grid on GPU (step 16)      |
+| `rsna_external_validation.py` | standalone runner: RSNA external validation (step 17) |
+| `external_validation/rsna/` | small derived CSVs from step 17 (no raw images)        |
